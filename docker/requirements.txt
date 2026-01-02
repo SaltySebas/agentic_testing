@@ -18,4 +18,3 @@ python-multipart
 aiofiles
 click
 colorama
-docker>=7.0.0

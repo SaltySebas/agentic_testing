@@ -16,6 +16,7 @@ if str(_backend_path) not in sys.path:
 from agents.requirements_agent import RequirementsAgent
 from agents.test_generator_agent import TestGeneratorAgent
 from agents.failure_analyzer_agent import FailureAnalyzerAgent
+from agents.docker_execution_agent import DockerExecutorAgent
 
 
 class Orchestrator:
@@ -34,6 +35,7 @@ class Orchestrator:
         self.requirements_agent = None
         self.test_generator_agent = None
         self.failure_analyzer_agent = None
+        self.docker_executor = None  # Will be initialized when needed
         
     def run(
         self,
@@ -146,7 +148,7 @@ class Orchestrator:
                 self._log_step("ITERATION", f"Starting iteration {state['iteration']}/{max_iterations}")
                 
                 # STEP 3: Test Execution (always run)
-                self._log_step("STEP 3", "Test Execution")
+                self._log_step("STEP 3", "Test Execution (Docker isolated)")
                 test_results = self._run_pytest(str(self.test_file))
                 
                 passed = test_results["passed"]
@@ -309,7 +311,51 @@ class Orchestrator:
     
     def _run_pytest(self, test_file: str) -> Dict[str, Any]:
         """
-        Run pytest and capture results.
+        Run pytest in Docker container with subprocess fallback.
+        
+        Args:
+            test_file: Path to the test file.
+        
+        Returns:
+            Dictionary with passed, failed counts and output.
+        """
+        # Initialize Docker executor if needed
+        if not hasattr(self, 'docker_executor') or self.docker_executor is None:
+            try:
+                self.docker_executor = DockerExecutorAgent()
+            except Exception as e:
+                # Fall back to subprocess if Docker not available
+                self._log_step("WARNING", f"Docker not available, using subprocess: {e}")
+                return self._run_pytest_subprocess(test_file)
+        
+        # Read test file content
+        test_file_path = Path(test_file)
+        try:
+            with open(test_file_path, 'r', encoding='utf-8') as f:
+                test_code = f.read()
+        except Exception as e:
+            self._log_step("WARNING", f"Failed to read test file, using subprocess: {e}")
+            return self._run_pytest_subprocess(test_file)
+        
+        # Run in Docker
+        try:
+            result = self.docker_executor.run_tests(test_code, test_file_path.name)
+            
+            return {
+                "passed": result["passed"],
+                "failed": result["failed"],
+                "output": result["output"],
+                "return_code": result["return_code"],
+                "failing_tests": result.get("failing_tests", [])
+            }
+        except Exception as e:
+            # Fall back to subprocess if Docker execution fails
+            self._log_step("WARNING", f"Docker execution failed, using subprocess: {e}")
+            return self._run_pytest_subprocess(test_file)
+    
+    def _run_pytest_subprocess(self, test_file: str) -> Dict[str, Any]:
+        """
+        Run pytest using subprocess (fallback method).
         
         Args:
             test_file: Path to the test file.
