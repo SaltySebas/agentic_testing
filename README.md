@@ -19,16 +19,58 @@
 
 ## 📦 Installation
 
-### From Source (Current)
+### CLI Tool
+
+**From Source:**
 ```bash
 git clone https://github.com/SaltySebas/agentic-testing.git
 cd agentic-testing
 pip install -e .
 ```
 
-### Requirements
+**Requirements:**
 - Python 3.8+
 - Anthropic API key ([Get one here](https://console.anthropic.com/))
+
+### Web Interface
+
+**Prerequisites:**
+- Python 3.8+
+- Node.js 18+
+- Docker Desktop
+- Anthropic API key
+
+**Backend Setup:**
+```bash
+# Clone and install
+git clone https://github.com/SaltySebas/agentic-testing.git
+cd agentic-testing
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Configure API key
+agentic-test init
+
+# Build Docker image
+docker build -t agentic_test-runner:latest docker/
+```
+
+**Frontend Setup:**
+```bash
+cd frontend
+npm install
+```
+
+**Run:**
+```bash
+# Terminal 1: Backend
+python backend/api/main.py
+
+# Terminal 2: Frontend
+cd frontend
+npm run dev
+```
 
 ## 🎯 Quick Start
 
@@ -95,6 +137,84 @@ agentic-test test code.py --max-iterations 3
 agentic-test test module.py --function my_func
 ```
 
+## 🌐 Web Interface
+
+### Access the Web UI
+
+**Start the backend:**
+```bash
+python backend/api/main.py
+# Server runs on http://localhost:8000
+```
+
+**Start the frontend:**
+```bash
+cd frontend
+npm install  # First time only
+npm run dev
+# UI opens on http://localhost:5173
+```
+
+**Open browser:** http://localhost:5173
+
+### Features
+
+- **🎨 Beautiful Dark Theme**: Modern UI with Tailwind CSS
+- **📝 Dual Modes**: Switch between Generate and Test modes
+- **⚡ Real-time Progress**: Live updates via WebSocket
+- **👥 Agent Visualization**: See agents working in real-time
+- **💾 Download Results**: Export generated tests
+- **🔄 Resume Support**: Continue from saved checkpoints
+- **📊 Test Results**: Visual pass/fail statistics
+- **🎯 Syntax Highlighting**: Color-coded Python code display
+
+### Usage
+
+1. **Generate Mode:**
+   - Enter requirements in natural language
+   - Adjust max iterations (1-10)
+   - Click "Generate Tests"
+   - Watch agents work in real-time
+   - Download generated code
+
+2. **Test Mode:**
+   - Paste your function code
+   - Click "Test Code"
+   - View test results and analysis
+   - Fix code if bugs detected
+   - Resume to re-run tests
+
+### API Endpoints
+
+The backend provides REST API and WebSocket endpoints:
+
+**REST API:**
+- `POST /api/generate` - Generate implementation + tests
+- `POST /api/test` - Generate tests for existing code
+- `POST /api/resume` - Resume from checkpoint
+- `GET /api/status` - System status (Docker availability)
+- `GET /health` - Health check
+
+**WebSocket:**
+- `WS /ws/{client_id}` - Real-time progress updates
+
+**API Documentation:** http://localhost:8000/docs (Swagger UI)
+
+### Tech Stack
+
+**Backend:**
+- FastAPI (Python web framework)
+- WebSockets (real-time communication)
+- Docker integration
+- CORS enabled
+
+**Frontend:**
+- React 18 (UI framework)
+- Vite 5 (build tool)
+- Tailwind CSS (styling)
+- Axios (HTTP client)
+- React Syntax Highlighter (code display)
+
 ## 🏗️ Architecture
 
 ### Multi-Agent System
@@ -140,6 +260,16 @@ while not all_tests_pass and iterations < max:
             break
 ```
 
+## 📸 Screenshots
+
+### Web Interface
+- **Generate Mode**: AI creates implementation + tests from requirements
+- **Test Mode**: Generate tests for existing code
+- **Real-time Progress**: Watch agents work through the pipeline
+- **Results Display**: View test results with syntax highlighting
+
+[Add actual screenshots when available]
+
 ## 💡 Examples
 
 ### Example 1: Generate Discount Calculator
@@ -181,26 +311,35 @@ Reason: Off-by-one error. Quantity of exactly 10 should qualify.
 ## 🛠️ Tech Stack
 
 - **LLM**: Claude Sonnet 4 (Anthropic)
-- **Framework**: Click (CLI), FastAPI (future web API)
-- **Testing**: pytest
+- **Framework**: Click (CLI), FastAPI (Web API)
+- **Frontend**: React 18, Vite, Tailwind CSS
+- **Testing**: pytest, Docker executor
 - **State**: JSON persistence
-- **Languages**: Python 3.8+
+- **Languages**: Python 3.8+, JavaScript (ES6+)
 
 ## 📊 Project Status
 
-**Current:** v0.1.0 - CLI MVP Complete
+**Current:** v1.0.0 - Production Ready
 
-**Implemented:**
-- ✅ Multi-agent orchestration
-- ✅ GENERATE mode
-- ✅ TEST mode
-- ✅ State persistence & resume
+**Completed:**
+- ✅ Multi-agent orchestration (4 agents)
+- ✅ GENERATE mode (requirements → code + tests)
+- ✅ TEST mode (code → tests)
+- ✅ Docker test executor (isolated, secure)
+- ✅ State persistence & resume capability
 - ✅ Stuck loop detection
-- ✅ Professional CLI
+- ✅ Professional CLI (5 commands)
+- ✅ REST API backend (FastAPI)
+- ✅ Web UI (React + Tailwind)
+- ✅ Real-time WebSocket updates
+- ✅ API documentation (Swagger)
+
+**Deployment Ready:**
+- Backend: Railway, Heroku, AWS
+- Frontend: Vercel, Netlify
+- Docker: Docker Hub, AWS ECR
 
 **Roadmap:**
-- 🔨 Agent 3: Docker test executor
-- 🔨 Web UI (FastAPI + React)
 - 🔨 VS Code extension
 - 🔨 GitHub Action integration
 - 🔨 PyPI publication
