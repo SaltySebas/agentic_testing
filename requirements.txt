@@ -16,3 +16,5 @@ pytest-cov
 pydantic
 python-multipart
 aiofiles
+click
+colorama

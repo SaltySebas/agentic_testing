@@ -100,6 +100,9 @@ class Orchestrator:
             else:  # mode == "test"
                 self.test_file = Path("generated_tests/test_user_code.py")
         
+        # Initialize failure tracking for stuck loop detection
+        failure_history = []
+        
         try:
             # STEP 1: Requirements Analysis (skip if resuming)
             if not is_resuming:
@@ -150,6 +153,12 @@ class Orchestrator:
                 failed = test_results["failed"]
                 self._log_step("STEP 3", f"✓ Tests executed: {passed} passed, {failed} failed")
                 
+                # Record failing test names for stuck loop detection
+                failing_tests = test_results.get("failing_tests", [])
+                if failing_tests:
+                    failure_history.append(set(failing_tests))
+                    self._log_step("STEP 3", f"  → Failing tests: {', '.join(failing_tests)}")
+                
                 # STEP 4: Result Handling
                 if failed == 0:
                     self._log_step("SUCCESS", "All tests passed!")
@@ -163,6 +172,34 @@ class Orchestrator:
                         "analysis": None,
                         "resume_state": None
                     }
+                
+                # STEP 4.5: Stuck Loop Detection (before failure analysis)
+                if len(failure_history) >= 3:
+                    last_three = failure_history[-3:]
+                    # Check if the same tests are failing across 3 consecutive iterations
+                    if (last_three[0] == last_three[1] == last_three[2] and len(last_three[0]) > 0):
+                        # STUCK LOOP DETECTED
+                        self._log_step("STUCK_LOOP", "⚠️  Same test failures detected after 3 iterations")
+                        self._log_step("STUCK_LOOP", f"   Failing tests: {', '.join(sorted(last_three[0]))}")
+                        self._log_step("STUCK_LOOP", "   System cannot determine if this is a CODE_BUG or TEST_BUG")
+                        self._log_step("STUCK_LOOP", "   Stopping to prevent infinite loop")
+                        
+                        state["checkpoint_reason"] = "Stuck loop - same failures repeated"
+                        return {
+                            "status": "STUCK_LOOP",
+                            "message": f"Same {len(last_three[0])} test(s) failing after 3 iterations. Likely CODE_BUG but requirements unclear. Please provide requirements documentation or manually review the code.",
+                            "scenarios": state["scenarios"],
+                            "tests": state["tests"],
+                            "test_results": test_results,
+                            "iterations": state["iteration"],
+                            "analysis": {
+                                "failure_type": "STUCK_LOOP",
+                                "failing_tests": list(last_three[0]),
+                                "iterations_stuck": 3,
+                                "suggestion": "Add docstring/requirements to the function OR manually review the failing tests to determine if code or test expectations are wrong."
+                            },
+                            "resume_state": state.copy()
+                        }
                 
                 # STEP 5: Failure Analysis
                 self._log_step("STEP 5", "Failure Analysis")
@@ -326,11 +363,42 @@ class Orchestrator:
                     passed_lines = [l for l in lines if "PASSED" in l or ("passed" in l.lower() and "failed" not in l.lower())]
                     passed = len(passed_lines)
             
+            # Extract failing test names
+            failing_tests = []
+            for line in lines:
+                # Look for patterns like "FAILED test_file.py::test_function_name"
+                if "FAILED" in line and "::" in line:
+                    parts = line.split("::")
+                    if len(parts) >= 2:
+                        test_name = parts[-1].strip()
+                        # Remove any trailing info like "[100%]"
+                        test_name = test_name.split()[0] if test_name.split() else test_name
+                        if test_name.startswith("test_"):
+                            failing_tests.append(test_name)
+                # Also look for "test_function_name FAILED" patterns
+                elif "FAILED" in line and "test_" in line:
+                    parts = line.split()
+                    for part in parts:
+                        if part.startswith("test_") and "FAILED" not in part:
+                            # Remove any trailing punctuation
+                            test_name = part.rstrip(".,;:")
+                            if test_name not in failing_tests:
+                                failing_tests.append(test_name)
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_failing_tests = []
+            for test in failing_tests:
+                if test not in seen:
+                    seen.add(test)
+                    unique_failing_tests.append(test)
+            
             return {
                 "passed": passed,
                 "failed": failed,
                 "output": output,
-                "return_code": result.returncode
+                "return_code": result.returncode,
+                "failing_tests": unique_failing_tests
             }
         
         except subprocess.TimeoutExpired:
@@ -338,14 +406,16 @@ class Orchestrator:
                 "passed": 0,
                 "failed": 0,
                 "output": "Test execution timed out after 60 seconds",
-                "return_code": -1
+                "return_code": -1,
+                "failing_tests": []
             }
         except Exception as e:
             return {
                 "passed": 0,
                 "failed": 0,
                 "output": f"Error running pytest: {str(e)}",
-                "return_code": -1
+                "return_code": -1,
+                "failing_tests": []
             }
     
     def _save_tests_to_file(self, tests: str, filepath: Path) -> None:
