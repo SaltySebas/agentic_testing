@@ -1,0 +1,18 @@
+# Core
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# AI/LLM
+anthropic
+langchain
+langchain-anthropic
+
+# Testing
+pytest
+pytest-cov
+
+# Utilities
+pydantic
+python-multipart
+aiofiles
